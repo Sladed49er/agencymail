@@ -1,0 +1,436 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ── Organization (Tenant) ──────────────────────────────────────
+
+model Organization {
+  id           String   @id @default(cuid())
+  clerkOrgId   String   @unique
+  name         String
+  agencyName   String?
+  agencyPhone  String?
+  website      String?
+  logo         String?
+  senderEmail  String?
+  senderName   String?
+  settings     Json     @default("{}")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  users              User[]
+  contacts           Contact[]
+  contactSegments    ContactSegment[]
+  campaigns          Campaign[]
+  emailTemplates     EmailTemplate[]
+  sequences          Sequence[]
+  smsConversations   SmsConversation[]
+  smsMessages        SmsMessage[]
+  apiKeys            ApiKey[]
+  dataSources        DataSource[]
+
+  @@map("organizations")
+}
+
+// ── User ───────────────────────────────────────────────────────
+
+model User {
+  id          String   @id @default(cuid())
+  clerkUserId String   @unique
+  orgId       String
+  role        String   @default("member")
+  email       String
+  name        String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@map("users")
+}
+
+// ── Contact ────────────────────────────────────────────────────
+
+enum ContactStatus {
+  ACTIVE
+  UNSUBSCRIBED
+  BOUNCED
+}
+
+model Contact {
+  id              String        @id @default(cuid())
+  orgId           String
+  externalId      String?
+  email           String?
+  phone           String?
+  firstName       String?
+  lastName        String?
+  address         String?
+  city            String?
+  state           String?
+  zip             String?
+  policyType      String?
+  carrier         String?
+  renewalDate     DateTime?
+  agentName       String?
+  tags            String[]      @default([])
+  customFields    Json          @default("{}")
+  engagementScore Int           @default(0)
+  status          ContactStatus @default(ACTIVE)
+  source          String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  org                   Organization          @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  campaignMessages      CampaignMessage[]
+  campaignLinkClicks    CampaignLinkClick[]
+  sequenceEnrollments   SequenceEnrollment[]
+  smsConversation       SmsConversation?
+  smsMessages           SmsMessage[]
+  marketingPreference   MarketingPreference?
+  activities            ContactActivity[]
+
+  @@unique([orgId, externalId])
+  @@index([orgId])
+  @@index([orgId, email])
+  @@index([orgId, status])
+  @@index([orgId, policyType])
+  @@index([orgId, renewalDate])
+  @@map("contacts")
+}
+
+// ── Contact Activity ───────────────────────────────────────────
+
+model ContactActivity {
+  id          String   @id @default(cuid())
+  contactId   String
+  type        String
+  description String?
+  metadata    Json     @default("{}")
+  createdAt   DateTime @default(now())
+
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@index([contactId])
+  @@index([contactId, type])
+  @@map("contact_activities")
+}
+
+// ── Contact Segment ────────────────────────────────────────────
+
+model ContactSegment {
+  id           String   @id @default(cuid())
+  orgId        String
+  name         String
+  filters      Json     @default("[]")
+  contactCount Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  campaigns Campaign[]
+
+  @@index([orgId])
+  @@map("contact_segments")
+}
+
+// ── Campaign ───────────────────────────────────────────────────
+
+enum CampaignStatus {
+  DRAFT
+  SCHEDULED
+  SENDING
+  SENT
+  CANCELLED
+}
+
+model Campaign {
+  id            String         @id @default(cuid())
+  orgId         String
+  name          String
+  subject       String?
+  body          String?        @db.Text
+  status        CampaignStatus @default(DRAFT)
+  segmentId     String?
+  scheduledAt   DateTime?
+  sentAt        DateTime?
+  stats         Json           @default("{}")
+  abTestEnabled Boolean        @default(false)
+  abSubjectB    String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  org      Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  segment  ContactSegment?   @relation(fields: [segmentId], references: [id])
+  messages CampaignMessage[]
+  links    CampaignLink[]
+
+  @@index([orgId])
+  @@index([orgId, status])
+  @@map("campaigns")
+}
+
+// ── Campaign Message ───────────────────────────────────────────
+
+enum MessageStatus {
+  QUEUED
+  SENT
+  DELIVERED
+  OPENED
+  CLICKED
+  BOUNCED
+  UNSUBSCRIBED
+}
+
+model CampaignMessage {
+  id          String        @id @default(cuid())
+  campaignId  String
+  contactId   String
+  status      MessageStatus @default(QUEUED)
+  sentAt      DateTime?
+  deliveredAt DateTime?
+  openedAt    DateTime?
+  clickedAt   DateTime?
+  bouncedAt   DateTime?
+  createdAt   DateTime      @default(now())
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  contact  Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId])
+  @@index([contactId])
+  @@map("campaign_messages")
+}
+
+// ── Campaign Link ──────────────────────────────────────────────
+
+model CampaignLink {
+  id         String   @id @default(cuid())
+  campaignId String
+  url        String
+  clickCount Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  campaign Campaign            @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  clicks   CampaignLinkClick[]
+
+  @@index([campaignId])
+  @@map("campaign_links")
+}
+
+model CampaignLinkClick {
+  id        String   @id @default(cuid())
+  linkId    String
+  contactId String
+  clickedAt DateTime @default(now())
+  userAgent String?
+
+  link    CampaignLink @relation(fields: [linkId], references: [id], onDelete: Cascade)
+  contact Contact      @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@index([linkId])
+  @@map("campaign_link_clicks")
+}
+
+// ── Email Template ─────────────────────────────────────────────
+
+enum TemplateCategory {
+  RENEWAL
+  BIRTHDAY
+  HOLIDAY
+  WELCOME
+  CROSS_SELL
+  REFERRAL
+  REVIEW
+  CLAIM
+  GENERAL
+}
+
+model EmailTemplate {
+  id        String           @id @default(cuid())
+  orgId     String?
+  name      String
+  subject   String
+  body      String           @db.Text
+  category  TemplateCategory @default(GENERAL)
+  isSystem  Boolean          @default(false)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  org Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@map("email_templates")
+}
+
+// ── Sequence ───────────────────────────────────────────────────
+
+enum SequenceStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+}
+
+model Sequence {
+  id          String         @id @default(cuid())
+  orgId       String
+  name        String
+  description String?
+  triggerType String
+  status      SequenceStatus @default(DRAFT)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  org         Organization         @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  steps       SequenceStep[]
+  enrollments SequenceEnrollment[]
+
+  @@index([orgId])
+  @@map("sequences")
+}
+
+// ── Sequence Step ──────────────────────────────────────────────
+
+enum StepType {
+  SEND_EMAIL
+  SEND_SMS
+  WAIT
+  CONDITION
+  ADD_TAG
+  CREATE_TASK
+}
+
+model SequenceStep {
+  id         String   @id @default(cuid())
+  sequenceId String
+  order      Int
+  type       StepType
+  config     Json     @default("{}")
+  createdAt  DateTime @default(now())
+
+  sequence Sequence @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+
+  @@index([sequenceId])
+  @@map("sequence_steps")
+}
+
+// ── Sequence Enrollment ────────────────────────────────────────
+
+enum EnrollmentStatus {
+  ACTIVE
+  COMPLETED
+  PAUSED
+  EXITED
+}
+
+model SequenceEnrollment {
+  id          String           @id @default(cuid())
+  sequenceId  String
+  contactId   String
+  currentStep Int              @default(0)
+  status      EnrollmentStatus @default(ACTIVE)
+  enrolledAt  DateTime         @default(now())
+  completedAt DateTime?
+
+  sequence Sequence @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+  contact  Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@index([sequenceId])
+  @@index([contactId])
+  @@map("sequence_enrollments")
+}
+
+// ── SMS ────────────────────────────────────────────────────────
+
+enum SmsDirection {
+  INBOUND
+  OUTBOUND
+}
+
+model SmsMessage {
+  id        String       @id @default(cuid())
+  orgId     String
+  contactId String
+  direction SmsDirection
+  body      String       @db.Text
+  status    String       @default("sent")
+  sentAt    DateTime     @default(now())
+
+  org     Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  contact Contact      @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@index([contactId])
+  @@map("sms_messages")
+}
+
+model SmsConversation {
+  id            String   @id @default(cuid())
+  orgId         String
+  contactId     String   @unique
+  lastMessageAt DateTime @default(now())
+  unreadCount   Int      @default(0)
+
+  org     Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  contact Contact      @relation(fields: [contactId], references: [id])
+
+  @@index([orgId])
+  @@map("sms_conversations")
+}
+
+// ── Marketing Preference ───────────────────────────────────────
+
+model MarketingPreference {
+  id         String   @id @default(cuid())
+  contactId  String   @unique
+  emailOptIn Boolean  @default(true)
+  smsOptIn   Boolean  @default(true)
+  token      String   @unique @default(cuid())
+  updatedAt  DateTime @updatedAt
+
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@map("marketing_preferences")
+}
+
+// ── API Key ────────────────────────────────────────────────────
+
+model ApiKey {
+  id         String    @id @default(cuid())
+  orgId      String
+  name       String
+  keyHash    String    @unique
+  prefix     String
+  lastUsedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@map("api_keys")
+}
+
+// ── Data Source ────────────────────────────────────────────────
+
+model DataSource {
+  id         String    @id @default(cuid())
+  orgId      String
+  type       String
+  name       String
+  lastSyncAt DateTime?
+  status     String    @default("active")
+  config     Json      @default("{}")
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@map("data_sources")
+}

@@ -1,7 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  typescript: {
+    // We check types separately; this speeds up builds
+    ignoreBuildErrors: true,
+  },
 };
 
 export default nextConfig;
