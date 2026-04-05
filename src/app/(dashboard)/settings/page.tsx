@@ -6,8 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Settings, Save } from "lucide-react";
+import { Settings, Save, Plug, CheckCircle2, XCircle, Copy } from "lucide-react";
 import { toast } from "sonner";
 
 export default function SettingsPage() {
@@ -150,6 +151,84 @@ export default function SettingsPage() {
           </Button>
         </div>
       </form>
+
+      {/* Integrations */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Plug className="h-5 w-5" />
+            Integrations
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* CallIntel Webhook */}
+          <div className="rounded-lg border p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium text-sm">CallIntel</p>
+                <p className="text-xs text-muted-foreground">
+                  Receive call events from CallIntel to log activity on contacts.
+                </p>
+              </div>
+              <Badge variant="secondary" className="gap-1 text-xs">
+                <CheckCircle2 className="h-3 w-3 text-green-500" />
+                Webhook Ready
+              </Badge>
+            </div>
+            <Separator />
+            <div className="space-y-2">
+              <Label className="text-xs">Webhook URL (give this to CallIntel)</Label>
+              <div className="flex gap-2">
+                <Input
+                  readOnly
+                  value={`${process.env.NEXT_PUBLIC_APP_URL || "https://your-agencymail.com"}/api/webhooks/callintel`}
+                  className="font-mono text-xs"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const url = `${process.env.NEXT_PUBLIC_APP_URL || window.location.origin}/api/webhooks/callintel`;
+                    navigator.clipboard.writeText(url);
+                    toast.success("Webhook URL copied");
+                  }}
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Set <code className="bg-muted px-1 py-0.5 rounded">CALLINTEL_WEBHOOK_SECRET</code> in
+                your environment to secure this endpoint.
+              </p>
+            </div>
+          </div>
+
+          {/* FormFlow / BookScan incoming */}
+          <div className="rounded-lg border p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium text-sm">FormFlow / BookScan</p>
+                <p className="text-xs text-muted-foreground">
+                  These apps sync contacts via the <code className="bg-muted px-1 py-0.5 rounded text-xs">/api/v1/contacts/sync</code> endpoint.
+                </p>
+              </div>
+              <Badge variant="secondary" className="gap-1 text-xs">
+                <CheckCircle2 className="h-3 w-3 text-green-500" />
+                API Ready
+              </Badge>
+            </div>
+            <Separator />
+            <p className="text-xs text-muted-foreground">
+              Create an API key on the{" "}
+              <a href="/api-setup" className="text-primary underline">
+                API Setup
+              </a>{" "}
+              page and provide it to FormFlow and BookScan as their{" "}
+              <code className="bg-muted px-1 py-0.5 rounded">AGENCYMAIL_API_KEY</code>.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
